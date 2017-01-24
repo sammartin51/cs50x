@@ -1,0 +1,155 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "bmp.h"
+
+void print_rgb(RGBTRIPLE * t);
+
+int main(int argc, char ** argv)
+{
+    if(argc != 4)
+    {
+        fprintf(stderr, "Resize required exactly (3) command line arguments!\n");
+        return 1;
+    }
+    // convert provided reduction factor to float, on failure returns 0
+    // will deal with this condition later
+    float factor = atof(argv[1]);
+    
+    //open infile and outfile
+    char * infile_name = argv[2];
+    FILE * infile = fopen(infile_name, "r");
+    
+    char * outfile_name = argv[3];
+    FILE * outfile = fopen(outfile_name, "w");
+    
+    // check file pointers
+    if(infile == NULL)
+    {
+        fprintf(stderr, "Could not open infile!\n");
+        return 1;
+    }
+    if(outfile == NULL)
+    {
+        fprintf(stderr, "Could not open outfile!\n");
+        return 1;
+    }
+
+    // read file info into memory
+    BITMAPFILEHEADER * file_header = malloc(sizeof(BITMAPFILEHEADER));
+    fread(file_header, sizeof(BITMAPFILEHEADER), 1, infile);
+    
+    BITMAPINFOHEADER * info_header = malloc(sizeof(BITMAPINFOHEADER));
+    fread(info_header, sizeof(BITMAPINFOHEADER), 1, infile);
+    
+    // grab pertinant file info
+    LONG in_width = info_header->biWidth; 
+    LONG in_height = info_header->biHeight;
+    LONG in_pixels = abs(in_width * in_height);
+    printf("width: %d, height: %d\n", in_width, in_height);
+    
+    // calculate outfile width and height
+    LONG out_width = (LONG) (factor * in_width);
+    LONG out_height = (LONG) (factor * in_height);
+    LONG out_pixels = abs(out_width * out_height);
+    printf("width: %d, height: %d\n", out_width, out_height);
+    
+    // short circuit too small factor
+    if(out_width == 0 || out_height == 0)
+    {
+        fprintf(stderr, "Outfile size too small, try a larger resize factor!\n");
+        return 1;
+    }
+    
+    // scanlines
+    int in_scanlines = (in_width * 3) % 4;
+    int out_scanlines = (out_width * 3) % 4;
+    printf ("out_width = %d, scanlines = %d\n", out_width * 3, out_scanlines);
+    
+    // pull infile info into memory
+    RGBTRIPLE * in_data = malloc(
+        in_width * abs(in_height) * sizeof(RGBTRIPLE));
+    
+    for(int i = 0; i < in_pixels; i++)
+    {
+        //fread(in_data, sizeof(RGBTRIPLE), 1, infile);
+        //print_rgb(in_data+i);
+        //printf("%d\n", i % in_width);
+        if(i % in_width == 0)
+        {
+            printf("seeking %d\n", in_scanlines);
+            fseek(infile, in_scanlines, SEEK_CUR);
+        }
+    }
+    
+    // resize data
+    RGBTRIPLE * out_data = malloc(
+        (out_width + out_scanlines) * abs(out_height) * sizeof(RGBTRIPLE));
+    for(int i = 0, n = out_width * abs(out_height); i < n; i++)
+    {
+        // infer out_image coordinates
+        LONG out_y = i / out_width;
+        LONG out_x = i % out_width;
+        
+        // infer out_image coords
+        LONG in_y = (LONG) (out_y / factor);
+        LONG in_x = (LONG) (out_x / factor);
+        
+        // transfer data
+        *(out_data + i) = *(in_data + in_y * in_width + in_x);
+        //print_rgb(in_data + in_y * in_width + in_x);
+        //print_rgb(out_data+1);
+    }
+    
+    // change header data
+    info_header->biWidth = out_width;
+    info_header->biHeight = out_height;
+    printf("Out Image Height: %x, %d\n", info_header->biHeight, info_header->biHeight);
+    info_header->biSizeImage = out_width * abs(out_height) * sizeof(RGBTRIPLE);
+    printf("bitmapinfoheadersize: %u\n", info_header->biSizeImage);
+    file_header->bfSize = info_header->biSizeImage + sizeof(BITMAPFILEHEADER)
+        + sizeof(BITMAPINFOHEADER);
+    printf("bitmapfileheadersize: %u\n", file_header->bfSize);
+    
+    // write header to file
+    fwrite(file_header, sizeof(BITMAPFILEHEADER), 1, outfile);
+    fwrite(info_header, sizeof(BITMAPINFOHEADER), 1, outfile);
+    
+    // write data to file
+    char zero = 0;
+    for(int i = 0; i < out_pixels; i++)
+    {
+       fwrite(out_data, sizeof(RGBTRIPLE), 1, outfile);
+       // write scanline bytes to file
+       if(i % out_width == 0)
+       {
+           for(int j = 0; j < out_scanlines; j++)
+           {
+               printf("writing a scan byte\n");
+               fwrite(&zero, sizeof(char), 1, outfile);
+           }
+       }
+    }
+    
+    free(file_header);
+    free(info_header);
+    free(in_data);
+    free(out_data);
+    fclose(infile);
+    fclose(outfile);
+    
+}
+
+void print_rgb(RGBTRIPLE * t)
+{
+    unsigned char * buf = malloc(3 * sizeof(unsigned char));
+    memcpy(buf, t, 3);
+    for(int i=0; i < 3; i++)
+    {
+        printf("%.2x", *(buf + i));
+    }
+    printf("\n");
+}
+
