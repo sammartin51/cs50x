@@ -1,0 +1,20 @@
+1.  stdint.h provides exact-width integer types which will allow for us to
+accurate gauge the memory requirements and limits of integers on any platform.
+2.  Particularly in the case of a BMP file, which is stored with a specific
+integer length, it allows us to declare and interpret variables of given formats.
+3.  typedef uint8_t  BYTE; -> 1 byte
+typedef uint32_t DWORD; -> 4 bytes
+typedef int32_t  LONG; -> 4 bytes
+typedef uint16_t WORD; -> 2 bytes
+4.  The BMP file signature is 42 4D in hex.
+5.  The difference is bfsize defines the file size and the bisize defines the
+image size. The bfsize should be the bisize + the file and info headers.
+6.  Having negative height would result in an image being stored upside down.
+7.  WORD biBitCoun defines bits per pixel.
+8.  fopen may return null if a file doesn't exist (if trying to read) or if the
+the user doesn't have read/write acces, or if there is no more space (if trying to write).
+9.  Because we are reading blocks one byte in length, if we were interested in
+reading diffirent length blocks, such as an array of binary structs this could be changed.
+10. Order of operations gives 4 - 9 mod 4 which is 3.
+11. fseek moves the read/write pointer to a location based on an offset and starting point.
+12. SEEK_CUR is the current file pointer location constant for fseek.
